@@ -1,0 +1,107 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+import warnings
+
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import (
+    accuracy_score, confusion_matrix,
+    classification_report, roc_auc_score, roc_curve
+)
+
+warnings.filterwarnings("ignore")
+
+# Load data
+standings = pd.read_csv("/content/driver_standings.csv")
+circuits = pd.read_csv("/content/circuits (1).csv")
+
+print(f"Driver standings loaded: {standings.shape[0]} rows")
+print(f"Circuits data loaded: {circuits.shape[0]} rows")
+
+# Preprocess driver standings
+standings.drop(columns=['positionText', 'driverStandingsId', 'driverId', 'constructorId', 'status'], inplace=True, errors='ignore')
+standings['position'] = pd.to_numeric(standings['position'], errors='coerce')
+standings.dropna(subset=['position'], inplace=True)
+standings['position'] = standings['position'].astype(int)
+standings['is_top_10'] = standings['position'].apply(lambda x: 1 if x <= 10 else 0)
+standings.drop(columns=['position'], inplace=True)
+
+# Visual: Circuit count by country
+plt.figure(figsize=(10, 6))
+sns.countplot(data=circuits, y='country', order=circuits['country'].value_counts().index)
+plt.title("Circuit Distribution by Country")
+plt.xlabel("Number of Circuits")
+plt.ylabel("Country")
+plt.tight_layout()
+plt.show()
+
+# Visual: Correlation heatmap
+plt.figure(figsize=(10, 6))
+sns.heatmap(standings.corr(), annot=True, cmap='coolwarm')
+plt.title("Feature Correlation Heatmap")
+plt.tight_layout()
+plt.show()
+
+# Split features and labels
+X = standings.drop(columns='is_top_10')
+y = standings['is_top_10']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train model
+clf = RandomForestClassifier(n_estimators=100, random_state=42)
+clf.fit(X_train, y_train)
+y_pred = clf.predict(X_test)
+
+# Evaluation
+acc = accuracy_score(y_test, y_pred)
+print(f"Model accuracy: {acc:.4f}")
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+# Visual: Confusion Matrix
+plt.figure(figsize=(6, 4))
+sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Blues',
+            xticklabels=['Not Top 10', 'Top 10'], yticklabels=['Not Top 10', 'Top 10'])
+plt.title("Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.tight_layout()
+plt.show()
+
+# Visual: ROC-AUC
+y_probs = clf.predict_proba(X_test)[:, 1]
+fpr, tpr, _ = roc_curve(y_test, y_probs)
+roc_auc = roc_auc_score(y_test, y_probs)
+
+plt.figure(figsize=(8, 6))
+plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.2f}", color='darkorange')
+plt.plot([0, 1], [0, 1], linestyle='--', color='gray')
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve")
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+# Visual: Feature Importance
+feature_importances = pd.Series(clf.feature_importances_, index=X.columns)
+feature_importances.sort_values().plot(kind='barh', figsize=(8, 5), color='teal')
+plt.title("Feature Importance Ranking")
+plt.xlabel("Importance")
+plt.tight_layout()
+plt.show()
+
+# Summary
+print(f"""
+Project completed successfully.
+
+Key Findings:
+- Accuracy: {acc:.4f}
+- AUC Score: {roc_auc:.4f}
+- The model can reliably distinguish whether a driver finishes in the top 10.
+
+Hope u liked the analysis(Project by Dhairya Pareek GH1025453)
+
+""")
